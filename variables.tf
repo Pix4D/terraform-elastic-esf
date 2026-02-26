@@ -57,6 +57,7 @@ EOT
   type = list(object({
     type = string
     id   = string
+    tags = optional(any, [])
     outputs = list(object({
       type = string
       args = object({
