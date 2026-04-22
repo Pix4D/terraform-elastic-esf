@@ -25,6 +25,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_connection_role_arn" {
+  description = "IAM Role ARN for Terraform to assume when authenticating with AWS"
+  type        = string
+  default     = null
+}
+
 variable "log_level" {
   description = "Log level for ESF"
   type        = string
