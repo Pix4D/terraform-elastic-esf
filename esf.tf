@@ -155,208 +155,208 @@ check "esf-release" {
 }
 
 
-resource "aws_s3_bucket" "esf-config-bucket" {
-  count = var.config-file-bucket == "" ? 1 : 0
+# resource "aws_s3_bucket" "esf-config-bucket" {
+#   count = var.config-file-bucket == "" ? 1 : 0
 
-  bucket        = local.config-bucket-name
-  force_destroy = true
-}
+#   bucket        = local.config-bucket-name
+#   force_destroy = true
+# }
 
-resource "aws_s3_object" "config-file" {
-  bucket  = local.config-bucket-name
-  key     = "config.yaml"
-  content = yamlencode(local.all-inputs)
+# resource "aws_s3_object" "config-file" {
+#   bucket  = local.config-bucket-name
+#   key     = "config.yaml"
+#   content = yamlencode(local.all-inputs)
 
-  depends_on = [aws_s3_bucket.esf-config-bucket]
-}
+#   depends_on = [aws_s3_bucket.esf-config-bucket]
+# }
 
-resource "terraform_data" "curl-dependencies-zip" {
-  // make the operation dependent on the release version
-  triggers_replace = [var.release-version]
+# resource "terraform_data" "curl-dependencies-zip" {
+#   // make the operation dependent on the release version
+#   triggers_replace = [var.release-version]
 
-  provisioner "local-exec" {
-    command = "curl -L -O ${local.dependencies-bucket-url}/${local.dependencies-file}"
-  }
-}
+#   provisioner "local-exec" {
+#     command = "curl -L -O ${local.dependencies-bucket-url}/${local.dependencies-file}"
+#   }
+# }
 
-resource "aws_s3_object" "dependencies-file" {
-  bucket = local.config-bucket-name
-  key    = local.dependencies-file
-  source = local.dependencies-file
+# resource "aws_s3_object" "dependencies-file" {
+#   bucket = local.config-bucket-name
+#   key    = local.dependencies-file
+#   source = local.dependencies-file
 
-  depends_on = [aws_s3_bucket.esf-config-bucket, terraform_data.curl-dependencies-zip]
-}
+#   depends_on = [aws_s3_bucket.esf-config-bucket, terraform_data.curl-dependencies-zip]
+# }
 
 
-module "esf-lambda-function" {
-  source  = "terraform-aws-modules/lambda/aws"
-  version = "6.0.0"
+# module "esf-lambda-function" {
+#   source  = "terraform-aws-modules/lambda/aws"
+#   version = "6.0.0"
 
-  function_name = var.lambda-name
-  handler       = "main_aws.lambda_handler"
-  runtime       = local.lambda_runtime
-  architectures = ["x86_64"]
-  timeout       = var.lambda-timeout
+#   function_name = var.lambda-name
+#   handler       = "main_aws.lambda_handler"
+#   runtime       = local.lambda_runtime
+#   architectures = ["x86_64"]
+#   timeout       = var.lambda-timeout
 
-  create_package = false
-  s3_existing_package = {
-    bucket = local.config-bucket-name
-    key    = local.dependencies-file
-  }
+#   create_package = false
+#   s3_existing_package = {
+#     bucket = local.config-bucket-name
+#     key    = local.dependencies-file
+#   }
 
-  environment_variables = {
-    S3_CONFIG_FILE : "s3://${local.config-bucket-name}/config.yaml"
-    SQS_CONTINUE_URL : aws_sqs_queue.esf-continuing-queue.url
-    SQS_REPLAY_URL : aws_sqs_queue.esf-replay-queue.url
-    LOG_LEVEL : var.log_level
-  }
+#   environment_variables = {
+#     S3_CONFIG_FILE : "s3://${local.config-bucket-name}/config.yaml"
+#     SQS_CONTINUE_URL : aws_sqs_queue.esf-continuing-queue.url
+#     SQS_REPLAY_URL : aws_sqs_queue.esf-replay-queue.url
+#     LOG_LEVEL : var.log_level
+#   }
 
-  vpc_subnet_ids         = var.vpc.subnets
-  vpc_security_group_ids = var.vpc.security-groups
-  attach_network_policy  = local.attach_network_policy
+#   vpc_subnet_ids         = var.vpc.subnets
+#   vpc_security_group_ids = var.vpc.security-groups
+#   attach_network_policy  = local.attach_network_policy
 
-  attach_policies    = true
-  number_of_policies = 1
-  policies           = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+#   attach_policies    = true
+#   number_of_policies = 1
+#   policies           = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
 
-  attach_policy_statements = true
+#   attach_policy_statements = true
 
-  policy_statements = merge(
-    {
-      config-file = {
-        effect  = "Allow",
-        actions = ["s3:GetObject"],
-        resources = [
-          "arn:aws:s3:::${local.config-bucket-name}/config.yaml",
-          "arn:aws:s3:::${local.config-bucket-name}/${local.dependencies-file}"
-        ]
-      },
-      internal-queues = {
-        effect    = "Allow",
-        actions   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
-        resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn]
-      }
-    },
-    local.kinesis-data-stream,
-    local.s3-sqs,
-    local.sqs,
-    local.ssm-secrets,
-    local.kms-keys,
-    local.s3-buckets
-  )
+#   policy_statements = merge(
+#     {
+#       config-file = {
+#         effect  = "Allow",
+#         actions = ["s3:GetObject"],
+#         resources = [
+#           "arn:aws:s3:::${local.config-bucket-name}/config.yaml",
+#           "arn:aws:s3:::${local.config-bucket-name}/${local.dependencies-file}"
+#         ]
+#       },
+#       internal-queues = {
+#         effect    = "Allow",
+#         actions   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+#         resources = [aws_sqs_queue.esf-continuing-queue.arn, aws_sqs_queue.esf-replay-queue.arn]
+#       }
+#     },
+#     local.kinesis-data-stream,
+#     local.s3-sqs,
+#     local.sqs,
+#     local.ssm-secrets,
+#     local.kms-keys,
+#     local.s3-buckets
+#   )
 
-  use_existing_cloudwatch_log_group = false
+#   use_existing_cloudwatch_log_group = false
 
-  depends_on = [aws_s3_object.config-file, aws_s3_object.dependencies-file]
-}
+#   depends_on = [aws_s3_object.config-file, aws_s3_object.dependencies-file]
+# }
 
-resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-kinesis-data-stream" {
-  for_each          = toset(local.kinesis-data-streams-arns)
-  event_source_arn  = each.value
-  function_name     = module.esf-lambda-function.lambda_function_arn
-  starting_position = "TRIM_HORIZON"
-  enabled           = true
+# resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-kinesis-data-stream" {
+#   for_each          = toset(local.kinesis-data-streams-arns)
+#   event_source_arn  = each.value
+#   function_name     = module.esf-lambda-function.lambda_function_arn
+#   starting_position = "TRIM_HORIZON"
+#   enabled           = true
 
-  # We should wait for the update of the config.yaml
-  depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
-}
+#   # We should wait for the update of the config.yaml
+#   depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
+# }
 
-resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-sqs" {
-  for_each         = toset(local.sqs-arns)
-  event_source_arn = each.value
-  function_name    = module.esf-lambda-function.lambda_function_arn
-  enabled          = true
+# resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-sqs" {
+#   for_each         = toset(local.sqs-arns)
+#   event_source_arn = each.value
+#   function_name    = module.esf-lambda-function.lambda_function_arn
+#   enabled          = true
 
-  # We should wait for the update of the config.yaml
-  depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
-}
+#   # We should wait for the update of the config.yaml
+#   depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
+# }
 
-resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-s3-sqs" {
-  for_each         = toset(local.s3-sqs-arns)
-  event_source_arn = each.value
-  function_name    = module.esf-lambda-function.lambda_function_arn
-  enabled          = true
+# resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-s3-sqs" {
+#   for_each         = toset(local.s3-sqs-arns)
+#   event_source_arn = each.value
+#   function_name    = module.esf-lambda-function.lambda_function_arn
+#   enabled          = true
 
-  # We should wait for the update of the config.yaml
-  depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
-}
+#   # We should wait for the update of the config.yaml
+#   depends_on = [module.esf-lambda-function, aws_s3_object.config-file]
+# }
 
-resource "aws_lambda_permission" "esf-cloudwatch-logs-invoke-function-permission" {
-  for_each      = toset(local.cloudwatch-logs-arns)
-  action        = "lambda:InvokeFunction"
-  function_name = module.esf-lambda-function.lambda_function_name
-  principal     = "logs.${split(":", each.value)[3]}.amazonaws.com"
-  source_arn    = each.value
-}
+# resource "aws_lambda_permission" "esf-cloudwatch-logs-invoke-function-permission" {
+#   for_each      = toset(local.cloudwatch-logs-arns)
+#   action        = "lambda:InvokeFunction"
+#   function_name = module.esf-lambda-function.lambda_function_name
+#   principal     = "logs.${split(":", each.value)[3]}.amazonaws.com"
+#   source_arn    = each.value
+# }
 
-resource "aws_cloudwatch_log_subscription_filter" "esf-cloudwatch-log-subscription-filter" {
-  for_each        = toset(local.cloudwatch-logs-arns)
-  name            = split(":", each.value)[6]
-  destination_arn = module.esf-lambda-function.lambda_function_arn
-  filter_pattern  = ""
-  log_group_name  = split(":", each.value)[6]
+# resource "aws_cloudwatch_log_subscription_filter" "esf-cloudwatch-log-subscription-filter" {
+#   for_each        = toset(local.cloudwatch-logs-arns)
+#   name            = split(":", each.value)[6]
+#   destination_arn = module.esf-lambda-function.lambda_function_arn
+#   filter_pattern  = ""
+#   log_group_name  = split(":", each.value)[6]
 
-  # We should wait for the update of the config.yaml
-  depends_on = [aws_lambda_permission.esf-cloudwatch-logs-invoke-function-permission, aws_s3_object.config-file]
-}
+#   # We should wait for the update of the config.yaml
+#   depends_on = [aws_lambda_permission.esf-cloudwatch-logs-invoke-function-permission, aws_s3_object.config-file]
+# }
 
-resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-continuing-queue" {
-  event_source_arn                   = aws_sqs_queue.esf-continuing-queue.arn
-  function_name                      = module.esf-lambda-function.lambda_function_arn
-  batch_size                         = var.continuing-queue.batch_size
-  maximum_batching_window_in_seconds = var.continuing-queue.batching_window_in_second
-}
+# resource "aws_lambda_event_source_mapping" "esf-event-source-mapping-continuing-queue" {
+#   event_source_arn                   = aws_sqs_queue.esf-continuing-queue.arn
+#   function_name                      = module.esf-lambda-function.lambda_function_arn
+#   batch_size                         = var.continuing-queue.batch_size
+#   maximum_batching_window_in_seconds = var.continuing-queue.batching_window_in_second
+# }
 
-resource "aws_sqs_queue" "esf-continuing-queue-dlq" {
-  name                       = "${var.lambda-name}-continuing-queue-dlq"
-  delay_seconds              = 0
-  sqs_managed_sse_enabled    = true
-  visibility_timeout_seconds = 910
-}
+# resource "aws_sqs_queue" "esf-continuing-queue-dlq" {
+#   name                       = "${var.lambda-name}-continuing-queue-dlq"
+#   delay_seconds              = 0
+#   sqs_managed_sse_enabled    = true
+#   visibility_timeout_seconds = 910
+# }
 
-resource "aws_sqs_queue_redrive_allow_policy" "esf-continuing-queue-dlq-redrive-allow-policy" {
-  queue_url = aws_sqs_queue.esf-continuing-queue-dlq.url
+# resource "aws_sqs_queue_redrive_allow_policy" "esf-continuing-queue-dlq-redrive-allow-policy" {
+#   queue_url = aws_sqs_queue.esf-continuing-queue-dlq.url
 
-  redrive_allow_policy = jsonencode({
-    redrivePermission = "byQueue",
-    sourceQueueArns   = [aws_sqs_queue.esf-continuing-queue.arn]
-  })
-}
+#   redrive_allow_policy = jsonencode({
+#     redrivePermission = "byQueue",
+#     sourceQueueArns   = [aws_sqs_queue.esf-continuing-queue.arn]
+#   })
+# }
 
-resource "aws_sqs_queue" "esf-continuing-queue" {
-  name                       = "${var.lambda-name}-continuing-queue"
-  delay_seconds              = 0
-  sqs_managed_sse_enabled    = true
-  visibility_timeout_seconds = 910
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.esf-continuing-queue-dlq.arn
-    maxReceiveCount     = 3
-  })
-}
+# resource "aws_sqs_queue" "esf-continuing-queue" {
+#   name                       = "${var.lambda-name}-continuing-queue"
+#   delay_seconds              = 0
+#   sqs_managed_sse_enabled    = true
+#   visibility_timeout_seconds = 910
+#   redrive_policy = jsonencode({
+#     deadLetterTargetArn = aws_sqs_queue.esf-continuing-queue-dlq.arn
+#     maxReceiveCount     = 3
+#   })
+# }
 
-resource "aws_sqs_queue" "esf-replay-queue-dlq" {
-  name                       = "${var.lambda-name}-replay-queue-dlq"
-  delay_seconds              = 0
-  sqs_managed_sse_enabled    = true
-  visibility_timeout_seconds = 910
-}
+# resource "aws_sqs_queue" "esf-replay-queue-dlq" {
+#   name                       = "${var.lambda-name}-replay-queue-dlq"
+#   delay_seconds              = 0
+#   sqs_managed_sse_enabled    = true
+#   visibility_timeout_seconds = 910
+# }
 
-resource "aws_sqs_queue_redrive_allow_policy" "esf-replay-queue-dlq-redrive-allow-policy" {
-  queue_url = aws_sqs_queue.esf-replay-queue-dlq.url
+# resource "aws_sqs_queue_redrive_allow_policy" "esf-replay-queue-dlq-redrive-allow-policy" {
+#   queue_url = aws_sqs_queue.esf-replay-queue-dlq.url
 
-  redrive_allow_policy = jsonencode({
-    redrivePermission = "byQueue",
-    sourceQueueArns   = [aws_sqs_queue.esf-replay-queue.arn]
-  })
-}
+#   redrive_allow_policy = jsonencode({
+#     redrivePermission = "byQueue",
+#     sourceQueueArns   = [aws_sqs_queue.esf-replay-queue.arn]
+#   })
+# }
 
-resource "aws_sqs_queue" "esf-replay-queue" {
-  name                       = "${var.lambda-name}-replay-queue"
-  delay_seconds              = 0
-  sqs_managed_sse_enabled    = true
-  visibility_timeout_seconds = 910
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.esf-replay-queue-dlq.arn
-    maxReceiveCount     = 3
-  })
-}
+# resource "aws_sqs_queue" "esf-replay-queue" {
+#   name                       = "${var.lambda-name}-replay-queue"
+#   delay_seconds              = 0
+#   sqs_managed_sse_enabled    = true
+#   visibility_timeout_seconds = 910
+#   redrive_policy = jsonencode({
+#     deadLetterTargetArn = aws_sqs_queue.esf-replay-queue-dlq.arn
+#     maxReceiveCount     = 3
+#   })
+# }
