@@ -64,6 +64,7 @@ EOT
     type = string
     id   = string
     tags = optional(any, [])
+    exclude = optional(list(string), [])
     outputs = list(object({
       type = string
       args = object({
