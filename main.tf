@@ -22,13 +22,3 @@ terraform {
     }
   }
 }
-
-provider "aws" {
-  dynamic "assume_role" {
-    for_each = var.aws_connection_role_arn != null ? [1] : []
-    content {
-      role_arn = var.aws_connection_role_arn
-    }
-  }
-  region = var.aws_region
-}
