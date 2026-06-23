@@ -28,6 +28,7 @@ locals {
       id : input.id,
       type : input.type,
       tags: input.tags,
+      exclude: input.exclude,
       outputs : [
         for output in input.outputs : {
           type : output.type
